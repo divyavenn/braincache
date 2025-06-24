@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional, Any
 from datetime import datetime
@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from search import hybrid_search  # Import the hybrid search function
+from auth import get_current_user
 
 load_dotenv()
 
@@ -27,8 +28,9 @@ class Entry(BaseModel):
 
 # --- Endpoints ---
 @app.post("/entry", response_model=Entry)
-def create_entry(entry: Entry):
+def create_entry(entry: Entry, user_id: str = Depends(get_current_user)):
     data = entry.dict(exclude_unset=True)
+    data["user_id"] = user_id
     # Supabase expects tags and assets as JSON
     if "tags" in data and not isinstance(data["tags"], list):
         data["tags"] = [data["tags"]]
@@ -42,15 +44,27 @@ def create_entry(entry: Entry):
     created = response.data[0]
     return Entry(**created)
 
+
+{
+  "id": 0,
+  "user_id": "5a273c4e-e487-47f1-ae2d-e06ee61cc5a8",
+  "created_at": "2025-06-24T07:19:48.479Z",
+  "text": "hi i'm trying this out",
+  "tags": ["test"],
+  "assets": [],
+  "embedding": [0]
+}
+
 @app.get("/entries", response_model=List[Entry])
 def search_and_list_entries(
     query: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     tag: Optional[str] = Query(None),
-    top_k: int = 10
+    top_k: int = 10,
+    user_id: str = Depends(get_current_user)
 ):
-    q = supabase.table("entries")
+    q = supabase.table("entries").eq("user_id", user_id)
     # Date range filter
     if start_date:
         q = q.gte("created_at", start_date.isoformat())
