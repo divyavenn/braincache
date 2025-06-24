@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from search import hybrid_search  # Import the hybrid search function
 
 load_dotenv()
 
@@ -20,9 +21,9 @@ class Entry(BaseModel):
     user_id: Optional[str] = None
     created_at: Optional[datetime] = None
     text: str
-    embedding: Optional[List[float]] = None
     tags: List[str] = Field(default_factory=list)
     assets: Optional[Any] = None  # List or dict, depending on your usage
+    embedding: Optional[List[float]] = None  # Now matches float8[] in Supabase
 
 # --- Endpoints ---
 @app.post("/entry", response_model=Entry)
@@ -33,6 +34,8 @@ def create_entry(entry: Entry):
         data["tags"] = [data["tags"]]
     if "assets" in data and data["assets"] is None:
         data["assets"] = []
+    if "embedding" in data and data["embedding"] is None:
+        data["embedding"] = []
     response = supabase.table("entries").insert(data).execute()
     if response.error:
         raise HTTPException(status_code=500, detail=response.error.message)
@@ -45,6 +48,7 @@ def search_and_list_entries(
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     tag: Optional[str] = Query(None),
+    top_k: int = 10
 ):
     q = supabase.table("entries")
     # Date range filter
@@ -62,7 +66,16 @@ def search_and_list_entries(
     response = q.execute()
     if response.error:
         raise HTTPException(status_code=500, detail=response.error.message)
-    return [Entry(**item) for item in response.data]
+    entries = response.data
+    # If query is provided, use hybrid search
+    if query:
+        try:
+            results = hybrid_search(entries, query, top_k=top_k)
+        except NotImplementedError as e:
+            raise HTTPException(status_code=501, detail=str(e))
+        return results
+    # Otherwise, return the most recent entries
+    return [Entry(**item) for item in entries[:top_k]]
 
 # TODO: Replace in-memory store with Supabase DB
 # TODO: Add authentication using Supabase

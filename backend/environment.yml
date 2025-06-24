@@ -1,0 +1,14 @@
+name: braincache
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - faiss-cpu
+  - pip
+  - pip:
+      - fastapi
+      - uvicorn
+      - supabase
+      - python-dotenv
+      - openai         # Only if you use OpenAI embeddings
