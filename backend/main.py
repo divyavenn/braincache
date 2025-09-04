@@ -14,12 +14,18 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-app = FastAPI()
+app = FastAPI(
+    title="BrainCache API",
+    description="API for managing personal knowledge entries",
+    version="1.0.0",
+    swagger_ui_init_oauth={
+        "usePkceWithAuthorizationCodeGrant": True
+    }
+)
 
 # --- Models ---
 class Entry(BaseModel):
     id: Optional[int] = None
-    user_id: Optional[str] = None
     created_at: Optional[datetime] = None
     text: str
     tags: List[str] = Field(default_factory=list)
@@ -28,7 +34,8 @@ class Entry(BaseModel):
 
 # --- Endpoints ---
 @app.post("/entry", response_model=Entry)
-def create_entry(entry: Entry, user_id: str = Depends(get_current_user)):
+def create_entry(entry: Entry, current_user: dict = Depends(get_current_user)):
+    user_id = current_user["user_id"]
     data = entry.dict(exclude_unset=True)
     data["user_id"] = user_id
     # Supabase expects tags and assets as JSON
@@ -47,7 +54,6 @@ def create_entry(entry: Entry, user_id: str = Depends(get_current_user)):
 
 {
   "id": 0,
-  "user_id": "5a273c4e-e487-47f1-ae2d-e06ee61cc5a8",
   "created_at": "2025-06-24T07:19:48.479Z",
   "text": "hi i'm trying this out",
   "tags": ["test"],
@@ -62,8 +68,9 @@ def search_and_list_entries(
     end_date: Optional[datetime] = Query(None),
     tag: Optional[str] = Query(None),
     top_k: int = 10,
-    user_id: str = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
+    user_id = current_user["user_id"]
     q = supabase.table("entries").eq("user_id", user_id)
     # Date range filter
     if start_date:

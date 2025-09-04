@@ -11,4 +11,5 @@ dependencies:
       - uvicorn
       - supabase
       - python-dotenv
-      - openai         # Only if you use OpenAI embeddings
+      - openai
+      - python-jose
